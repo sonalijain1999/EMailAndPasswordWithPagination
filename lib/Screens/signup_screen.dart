@@ -1,20 +1,15 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:riverpodauth/Models/user_model.dart';
 import 'package:riverpodauth/Screens/home_screen.dart';
-
-class SignupScreen extends StatefulWidget {
-  const SignupScreen({Key? key}) : super(key: key);
-
-  @override
-  _SignupScreenState createState() => _SignupScreenState();
-}
-
-class _SignupScreenState extends State<SignupScreen> {
-  final _auth = FirebaseAuth.instance;
-  DateTime dob=DateTime.now();
+import 'package:riverpodauth/providers/auth_providers.dart';
+final dobProvider = Provider((ref) => DateTime.now());
+class SignupScreen extends ConsumerWidget {
+  //DateTime dob=DateTime.now();
+  FirebaseAuth auth=FirebaseAuth.instance;
   DateTime time=DateTime.now();
   // string for displaying the error Message
   String? errorMessage;
@@ -29,7 +24,10 @@ class _SignupScreenState extends State<SignupScreen> {
    final dobContoller= new TextEditingController();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final _auth = ref.watch(authServicesProvider);
+
+
     //first name field
     final firstNameField = TextFormField(
         autofocus: false,
@@ -146,20 +144,26 @@ class _SignupScreenState extends State<SignupScreen> {
         autofocus: false,
         textInputAction: TextInputAction.done,
         decoration: InputDecoration(
-          prefixIcon: IconButton(
+          prefixIcon: Consumer(
+        builder: (context, watch, child) {
+          var dob = ref.watch(dobProvider);
+        return  IconButton(
             icon: Icon(Icons.calendar_today),
             onPressed: () async {
               dob=(await showDatePicker(
-                  context: context,
-                  firstDate: DateTime(1800),
-                  lastDate: DateTime.now(),
-                  initialDate: DateTime.now(),))!;
-              setState(() {
-                print(dob);
-                dobContoller.text=dob.toString().split(" ")[0];
-              });
+                context: context,
+                firstDate: DateTime(1800),
+                lastDate: DateTime.now(),
+                initialDate: DateTime.now(),))!;
+
+              print(dob);
+
+              dobContoller.text=dob.toString().split(" ")[0];
+
             },
 
+          );
+        }
           ),
           contentPadding: EdgeInsets.fromLTRB(20, 15, 20, 15),
           hintText: "DOB",
@@ -179,7 +183,17 @@ class _SignupScreenState extends State<SignupScreen> {
           padding: EdgeInsets.fromLTRB(20, 15, 20, 15),
           minWidth: MediaQuery.of(context).size.width,
           onPressed: () {
-            signUp(emailEditingController.text, passwordEditingController.text);
+            _auth
+                .signUp(
+                email: emailEditingController.text,
+                password: passwordEditingController.text)
+                .then((value) {
+              if (value) {
+                Navigator.of(context).pushReplacement(
+                    MaterialPageRoute(builder: (context) => const HomeScreen()));
+                postDetailsToFirestore();
+              }
+            });
           },
           child: Text(
             "SignUp",
@@ -236,51 +250,13 @@ class _SignupScreenState extends State<SignupScreen> {
     );
   }
 
-  void signUp(String email, String password) async {
-    if (_formKey.currentState!.validate()) {
-      try {
-        await _auth
-            .createUserWithEmailAndPassword(email: email, password: password)
-            .then((value) => {postDetailsToFirestore()})
-            .catchError((e) {
-          Fluttertoast.showToast(msg: e!.message);
-        });
-      } on FirebaseAuthException catch (error) {
-        switch (error.code) {
-          case "invalid-email":
-            errorMessage = "Your email address appears to be malformed.";
-            break;
-          case "wrong-password":
-            errorMessage = "Your password is wrong.";
-            break;
-          case "user-not-found":
-            errorMessage = "User with this email doesn't exist.";
-            break;
-          case "user-disabled":
-            errorMessage = "User with this email has been disabled.";
-            break;
-          case "too-many-requests":
-            errorMessage = "Too many requests";
-            break;
-          case "operation-not-allowed":
-            errorMessage = "Signing in with Email and Password is not enabled.";
-            break;
-          default:
-            errorMessage = "An undefined Error happened.";
-        }
-        Fluttertoast.showToast(msg: errorMessage!);
-        print(error.code);
-      }
-    }
-  }
-
   postDetailsToFirestore() async {
     // calling our firestore
     // calling our user model
     // sedning these values
 
     FirebaseFirestore firebaseFirestore = FirebaseFirestore.instance;
-    User? user = _auth.currentUser;
+    User? user = auth.currentUser;
 
     UserModel userModel = UserModel();
 
@@ -293,16 +269,50 @@ class _SignupScreenState extends State<SignupScreen> {
     await firebaseFirestore
         .collection("users")
         .doc(user.uid)
-        .set(userModel.toMap());
-    Fluttertoast.showToast(msg: "Account created successfully :) "
-    );
-    setState(() {
-      Text("Account created");
+        .set(userModel.toMap()).then((value) {
+      Fluttertoast.showToast(msg: "Account created successfully :) "
+      );
+
     });
 
-    Navigator.pushAndRemoveUntil(
-        (context),
-        MaterialPageRoute(builder: (context) => HomeScreen()),
-        (route) => false);
+
+
   }
-}
+//   Future<String?> signUp({String? email, String? password}) async {
+//     // if (_formKey.currentState!.validate()) {
+//     try {
+//       await _auth
+//           .createUserWithEmailAndPassword(email: email!, password: password!)
+//        .then((value) => {postDetailsToFirestore()})
+//           .catchError((e) {
+//         Fluttertoast.showToast(msg: e!.message);
+//       });
+//     } on FirebaseAuthException catch (error) {
+//       switch (error.code) {
+//         case "invalid-email":
+//           errorMessage = "Your email address appears to be malformed.";
+//           break;
+//         case "wrong-password":
+//           errorMessage = "Your password is wrong.";
+//           break;
+//         case "user-not-found":
+//           errorMessage = "User with this email doesn't exist.";
+//           break;
+//         case "user-disabled":
+//           errorMessage = "User with this email has been disabled.";
+//           break;
+//         case "too-many-requests":
+//           errorMessage = "Too many requests";
+//           break;
+//         case "operation-not-allowed":
+//           errorMessage = "Signing in with Email and Password is not enabled.";
+//           break;
+//         default:
+//           errorMessage = "An undefined Error happened.";
+//       }
+//       Fluttertoast.showToast(msg: errorMessage!);
+//       print(error.code);
+//     }
+//     // }
+//   }
+ }

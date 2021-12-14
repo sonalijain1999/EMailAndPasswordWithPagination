@@ -3,6 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpodauth/Screens/home_screen.dart';
+import 'package:riverpodauth/providers/auth_providers.dart';
 
 import 'Screens/login_screen.dart';
 import 'dart:io';
@@ -34,7 +35,61 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.red,
       ),
       debugShowCheckedModeBanner: false,
-      home: LoginScreen(),
+      home: StartPage(),
+    );
+  }
+}
+class StartPage extends StatelessWidget {
+  final Future<FirebaseApp> _initialization = Firebase.initializeApp();
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder(
+      future: _initialization,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Center(
+            child: Text("Something Went wrong"),
+          );
+        }
+        if (snapshot.connectionState == ConnectionState.done) {
+          return AuthChecker();
+        }
+        //loading
+        return Scaffold(
+          body: Center(
+            child: CircularProgressIndicator(),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class AuthChecker extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final _authState = ref.watch(authStateProvider);
+    return _authState.when(
+      data: (value) {
+        if (value != null) {
+          return HomeScreen();
+        }
+        return LoginScreen();
+      },
+      loading: () {
+        return Scaffold(
+          body: Center(
+            child: CircularProgressIndicator(),
+          ),
+        );
+      },
+      error: (_, __) {
+        return Scaffold(
+          body: Center(
+            child: Text("OOPS"),
+          ),
+        );
+      },
     );
   }
 }
